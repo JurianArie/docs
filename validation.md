@@ -111,7 +111,7 @@ To get a better understanding of the `validate` method, let's jump back into the
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'title' => 'required|unique:posts|max:255',
+            'title' => 'required|max:255',
             'body' => 'required',
         ]);
 
@@ -125,14 +125,14 @@ As you can see, the validation rules are passed into the `validate` method. Don'
 Alternatively, validation rules may be specified as arrays of rules instead of a single `|` delimited string:
 
     $validatedData = $request->validate([
-        'title' => ['required', 'unique:posts', 'max:255'],
+        'title' => ['required', 'max:255'],
         'body' => ['required'],
     ]);
 
 In addition, you may use the `validateWithBag` method to validate a request and store any error messages within a [named error bag](#named-error-bags):
 
     $validatedData = $request->validateWithBag('post', [
-        'title' => ['required', 'unique:posts', 'max:255'],
+        'title' => ['required', 'max:255'],
         'body' => ['required'],
     ]);
 
@@ -142,11 +142,11 @@ In addition, you may use the `validateWithBag` method to validate a request and 
 Sometimes you may wish to stop running validation rules on an attribute after the first validation failure. To do so, assign the `bail` rule to the attribute:
 
     $request->validate([
-        'title' => 'bail|required|unique:posts|max:255',
+        'title' => 'bail|required|min:3|max:255',
         'body' => 'required',
     ]);
 
-In this example, if the `unique` rule on the `title` attribute fails, the `max` rule will not be checked. Rules will be validated in the order they are assigned.
+In this example, if the `min` rule on the `title` attribute fails, the `max` rule will not be checked. Rules will be validated in the order they are assigned.
 
 <a name="a-note-on-nested-attributes"></a>
 #### A Note on Nested Attributes
@@ -154,7 +154,7 @@ In this example, if the `unique` rule on the `title` attribute fails, the `max` 
 If the incoming HTTP request contains "nested" field data, you may specify these fields in your validation rules using "dot" syntax:
 
     $request->validate([
-        'title' => 'required|unique:posts|max:255',
+        'title' => 'required|max:255',
         'author.name' => 'required',
         'author.description' => 'required',
     ]);
@@ -162,7 +162,7 @@ If the incoming HTTP request contains "nested" field data, you may specify these
 On the other hand, if your field name contains a literal period, you can explicitly prevent this from being interpreted as "dot" syntax by escaping the period with a backslash:
 
     $request->validate([
-        'title' => 'required|unique:posts|max:255',
+        'title' => 'required|max:255',
         'v1\.0' => 'required',
     ]);
 
@@ -259,7 +259,7 @@ Laravel also provides a global `old` helper. If you are displaying old input wit
 By default, Laravel includes the `TrimStrings` and `ConvertEmptyStringsToNull` middleware in your application's global middleware stack. Because of this, you will often need to mark your "optional" request fields as `nullable` if you do not want the validator to consider `null` values as invalid. For example:
 
     $request->validate([
-        'title' => 'required|unique:posts|max:255',
+        'title' => 'required|max:255',
         'body' => 'required',
         'publish_at' => 'nullable|date',
     ]);
@@ -318,7 +318,7 @@ As you might have guessed, the `authorize` method is responsible for determining
     public function rules(): array
     {
         return [
-            'title' => 'required|unique:posts|max:255',
+            'title' => 'required|max:255',
             'body' => 'required',
         ];
     }
@@ -556,7 +556,7 @@ If you do not want to use the `validate` method on the request, you may create a
         public function store(Request $request): RedirectResponse
         {
             $validator = Validator::make($request->all(), [
-                'title' => 'required|unique:posts|max:255',
+                'title' => 'required|max:255',
                 'body' => 'required',
             ]);
 
@@ -597,14 +597,14 @@ The `stopOnFirstFailure` method will inform the validator that it should stop va
 If you would like to create a validator instance manually but still take advantage of the automatic redirection offered by the HTTP request's `validate` method, you may call the `validate` method on an existing validator instance. If validation fails, the user will automatically be redirected or, in the case of an XHR request, a [JSON response will be returned](#validation-error-response-format):
 
     Validator::make($request->all(), [
-        'title' => 'required|unique:posts|max:255',
+        'title' => 'required|max:255',
         'body' => 'required',
     ])->validate();
 
 You may use the `validateWithBag` method to store the error messages in a [named error bag](#named-error-bags) if validation fails:
 
     Validator::make($request->all(), [
-        'title' => 'required|unique:posts|max:255',
+        'title' => 'required|max:255',
         'body' => 'required',
     ])->validateWithBag('post');
 
@@ -1318,50 +1318,38 @@ The field under validation will be excluded from the request data returned by th
 The field under validation will be excluded from the request data returned by the `validate` and `validated` methods if the _anotherfield_ field is not present.
 
 <a name="rule-exists"></a>
-#### exists:_table_,_column_
+#### exists
 
 The field under validation must exist in a given database table.
 
 <a name="basic-usage-of-exists-rule"></a>
-#### Basic Usage of Exists Rule
+#### Basic Usage Of Exists Rule
 
-    'state' => 'exists:states'
-
-If the `column` option is not specified, the field name will be used. So, in this case, the rule will validate that the `states` database table contains a record with a `state` column value matching the request's `state` attribute value.
-
-<a name="specifying-a-custom-column-name"></a>
-#### Specifying a Custom Column Name
-
-You may explicitly specify the database column name that should be used by the validation rule by placing it after the database table name:
-
-    'state' => 'exists:states,abbreviation'
-
-Occasionally, you may need to specify a specific database connection to be used for the `exists` query. You can accomplish this by prepending the connection name to the table name:
-
-    'email' => 'exists:connection.staff,email'
-
-Instead of specifying the table name directly, you may specify the Eloquent model which should be used to determine the table name:
-
-    'user_id' => 'exists:App\Models\User,id'
-
-If you would like to customize the query executed by the validation rule, you may use the `Rule` class to fluently define the rule. In this example, we'll also specify the validation rules as an array instead of using the `|` character to delimit them:
-
-    use Illuminate\Database\Query\Builder;
-    use Illuminate\Support\Facades\Validator;
+    use App\Models\User;
     use Illuminate\Validation\Rule;
 
-    Validator::make($data, [
-        'email' => [
-            'required',
-            Rule::exists('staff')->where(function (Builder $query) {
-                return $query->where('account_id', 1);
-            }),
-        ],
-    ]);
+    'email' => Rule::exists(User::query()->where('active', true))
 
-You may explicitly specify the database column name that should be used by the `exists` rule generated by the `Rule::exists` method by providing the column name as the second argument to the `exists` method:
+If the `$column` is not specified, the field name will be used. So, in this case, the rule will validate that the `users` database table contains a record with a `email` column value matching the request's `email` attribute value.
 
-    'state' => Rule::exists('states', 'abbreviation'),
+<a name="specifying-a-custom-column-name-rule-exists"></a>
+#### Specifying A Custom Column Name
+
+You may specify the `$column` by passing it as an argument:
+
+    use App\Models\User;
+    use Illuminate\Validation\Rule;
+
+    'user_id' => Rule::exists(User::query(), 'id')
+
+<a name="rule-exists-relationships"></a>
+#### Using Relationships
+
+You may also pass relationships to the `exists` method. For example, let's verify that the `post_id` exists for the currently authenticated user:
+
+    use Illuminate\Validation\Rule;
+
+    'post_id' => Rule::exists($this->user()->posts(), 'id')
 
 <a name="rule-extensions"></a>
 #### extensions:_foo_,_bar_,...
@@ -1824,62 +1812,39 @@ The arguments [accepted by the `DateTimeZone::listIdentifiers` method](https://w
     'timezone' => 'required|timezone:per_country,US';
 
 <a name="rule-unique"></a>
-#### unique:_table_,_column_
+#### unique
 
 The field under validation must not exist within the given database table.
 
-**Specifying a Custom Table / Column Name:**
+<a name="basic-usage-of-unique-rule"></a>
+#### Basic Usage Of Unique Rule
 
-Instead of specifying the table name directly, you may specify the Eloquent model which should be used to determine the table name:
+    use App\Models\User;
+    use Illuminate\Validation\Rule;
 
-    'email' => 'unique:App\Models\User,email_address'
+    'email' => Rule::unique(User::query())
 
-The `column` option may be used to specify the field's corresponding database column. If the `column` option is not specified, the name of the field under validation will be used.
+If the `$column` is not specified, the field name will be used. So, in this case, the rule will validate that the `users` database table contains a record with a `email` column value matching the request's `email` attribute value.
 
-    'email' => 'unique:users,email_address'
+<a name="specifying-a-custom-column-name-rule-unique"></a>
+#### Specifying A Custom Column Name
 
-**Specifying a Custom Database Connection**
+You may specify the `$column` by passing it as an argument:
 
-Occasionally, you may need to set a custom connection for database queries made by the Validator. To accomplish this, you may prepend the connection name to the table name:
+    use App\Models\User;
+    use Illuminate\Validation\Rule;
 
-    'email' => 'unique:connection.users,email_address'
+    'email' => Rule::unique(User::query(), 'billing_email')
 
-**Forcing a Unique Rule to Ignore a Given ID:**
+<a name="ignoring-a-given-id"></a>
+#### Ignoring A Given ID
 
 Sometimes, you may wish to ignore a given ID during unique validation. For example, consider an "update profile" screen that includes the user's name, email address, and location. You will probably want to verify that the email address is unique. However, if the user only changes the name field and not the email field, you do not want a validation error to be thrown because the user is already the owner of the email address in question.
 
-To instruct the validator to ignore the user's ID, we'll use the `Rule` class to fluently define the rule. In this example, we'll also specify the validation rules as an array instead of using the `|` character to delimit the rules:
-
-    use Illuminate\Support\Facades\Validator;
+    use App\Models\User;
     use Illuminate\Validation\Rule;
 
-    Validator::make($data, [
-        'email' => [
-            'required',
-            Rule::unique('users')->ignore($user->id),
-        ],
-    ]);
-
-> [!WARNING]  
-> You should never pass any user controlled request input into the `ignore` method. Instead, you should only pass a system generated unique ID such as an auto-incrementing ID or UUID from an Eloquent model instance. Otherwise, your application will be vulnerable to an SQL injection attack.
-
-Instead of passing the model key's value to the `ignore` method, you may also pass the entire model instance. Laravel will automatically extract the key from the model:
-
-    Rule::unique('users')->ignore($user)
-
-If your table uses a primary key column name other than `id`, you may specify the name of the column when calling the `ignore` method:
-
-    Rule::unique('users')->ignore($user->id, 'user_id')
-
-By default, the `unique` rule will check the uniqueness of the column matching the name of the attribute being validated. However, you may pass a different column name as the second argument to the `unique` method:
-
-    Rule::unique('users', 'email_address')->ignore($user->id)
-
-**Adding Additional Where Clauses:**
-
-You may specify additional query conditions by customizing the query using the `where` method. For example, let's add a query condition that scopes the query to only search records that have an `account_id` column value of `1`:
-
-    'email' => Rule::unique('users')->where(fn (Builder $query) => $query->where('account_id', 1))
+    'email' => Rule::unique(User::query()->whereKeyNot($this->user()))
 
 <a name="rule-uppercase"></a>
 #### uppercase
@@ -2039,7 +2004,7 @@ Validating nested array based form input fields doesn't have to be a pain. You m
 You may also validate each element of an array. For example, to validate that each email in a given array input field is unique, you may do the following:
 
     $validator = Validator::make($request->all(), [
-        'person.*.email' => 'email|unique:users',
+        'person.*.email' => 'email|distinct',
         'person.*.first_name' => 'required_with:person.*.last_name',
     ]);
 
@@ -2047,7 +2012,7 @@ Likewise, you may use the `*` character when specifying [custom validation messa
 
     'custom' => [
         'person.*.email' => [
-            'unique' => 'Each person must have a unique email address',
+            'distinct' => 'Each person must have a unique email address',
         ]
     ],
 
@@ -2056,6 +2021,7 @@ Likewise, you may use the `*` character when specifying [custom validation messa
 
 Sometimes you may need to access the value for a given nested array element when assigning validation rules to the attribute. You may accomplish this using the `Rule::forEach` method. The `forEach` method accepts a closure that will be invoked for each iteration of the array attribute under validation and will receive the attribute's value and explicit, fully-expanded attribute name. The closure should return an array of rules to assign to the array element:
 
+    use App\Models\Company;
     use App\Rules\HasPermission;
     use Illuminate\Support\Facades\Validator;
     use Illuminate\Validation\Rule;
@@ -2063,7 +2029,7 @@ Sometimes you may need to access the value for a given nested array element when
     $validator = Validator::make($request->all(), [
         'companies.*.id' => Rule::forEach(function (string|null $value, string $attribute) {
             return [
-                Rule::exists(Company::class, 'id'),
+                Rule::exists(Company::query(), 'id'),
                 new HasPermission('manage-company', $value),
             ];
         }),
@@ -2387,13 +2353,13 @@ If you only need the functionality of a custom rule once throughout your applica
 <a name="implicit-rules"></a>
 ### Implicit Rules
 
-By default, when an attribute being validated is not present or contains an empty string, normal validation rules, including custom rules, are not run. For example, the [`unique`](#rule-unique) rule will not be run against an empty string:
+By default, when an attribute being validated is not present or contains an empty string, normal validation rules, including custom rules, are not run. For example, the [`uuid`](#rule-uuid) rule will not be run against an empty string:
 
     use Illuminate\Support\Facades\Validator;
 
-    $rules = ['name' => 'unique:users,name'];
+    $rules = ['id' => 'uuid'];
 
-    $input = ['name' => ''];
+    $input = ['id' => ''];
 
     Validator::make($input, $rules)->passes(); // true
 
